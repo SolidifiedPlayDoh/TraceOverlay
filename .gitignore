@@ -1,0 +1,23 @@
+# Built app (releases are built in CI and attached to GitHub Releases)
+TraceOverlay.app/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Xcode / build
+build/
+DerivedData/
+*.xcuserstate
+*.xcworkspace
+!default.xcworkspace
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# Misc
+*.swp
+*~
+Thumbs.db

@@ -1,0 +1,41 @@
+# Build TraceOverlay.app and publish to GitHub Releases when a version tag is pushed.
+# Usage: git tag v1.0.0 && git push origin v1.0.0
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build app
+        run: |
+          chmod +x build.sh
+          ./build.sh
+
+      - name: Set version in Info.plist from tag
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          VERSION="${TAG#v}"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" TraceOverlay.app/Contents/Info.plist
+
+      - name: Zip app
+        run: |
+          ditto -c -k --sequesterRsrc --keepParent TraceOverlay.app TraceOverlay-macOS.zip
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: TraceOverlay-macOS.zip
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
