@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.0.1] - 2025-02-16
+
+### Fixed
+
+- Release builds are now **signed and notarized** when Apple Developer secrets are configured in the repo. Downloads open immediately without the "damaged" Gatekeeper warning. See [Publishing a release](#publishing-a-release) in the README for setup.
+
 ## [1.0.0] - 2025-02-16
 
 ### Added

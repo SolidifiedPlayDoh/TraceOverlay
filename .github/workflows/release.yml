@@ -1,5 +1,5 @@
 # Build TraceOverlay.app and publish to GitHub Releases when a version tag is pushed.
-# Usage: git tag v1.0.0 && git push origin v1.0.0
+# For "opens immediately" downloads: set Apple Developer secrets (see README). Then: git tag v1.0.1 && git push origin v1.0.1
 name: Release
 
 on:
@@ -28,9 +28,41 @@ jobs:
           VERSION="${TAG#v}"
           /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" TraceOverlay.app/Contents/Info.plist
 
-      - name: Zip app
+      - name: Sign and package
+        env:
+          APPLE_DEVELOPER_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_DEVELOPER_CERTIFICATE_P12_BASE64 }}
+          APPLE_DEVELOPER_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_DEVELOPER_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          ditto -c -k --sequesterRsrc --keepParent TraceOverlay.app TraceOverlay-macOS.zip
+          set -e
+          if [ -n "$APPLE_SIGNING_IDENTITY" ] && [ -n "$APPLE_DEVELOPER_CERTIFICATE_P12_BASE64" ]; then
+            KEYCHAIN_PATH="$RUNNER_TEMP/signing.keychain-db"
+            KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
+            CERT_PATH="$RUNNER_TEMP/cert.p12"
+            echo "$APPLE_DEVELOPER_CERTIFICATE_P12_BASE64" | base64 --decode > "$CERT_PATH"
+            security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+            security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+            security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+            security import "$CERT_PATH" -k "$KEYCHAIN_PATH" -P "$APPLE_DEVELOPER_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+            security list-keychain -d user -s "$KEYCHAIN_PATH"
+            codesign --force --deep --options runtime -s "$APPLE_SIGNING_IDENTITY" TraceOverlay.app
+            ditto -c -k --sequesterRsrc --keepParent TraceOverlay.app TraceOverlay-macOS.zip
+            xcrun notarytool submit TraceOverlay-macOS.zip \
+              --apple-id "$APPLE_ID" \
+              --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+              --team-id "$APPLE_TEAM_ID" \
+              --wait
+            xcrun stapler staple TraceOverlay.app
+            rm -f TraceOverlay-macOS.zip
+            ditto -c -k --sequesterRsrc --keepParent TraceOverlay.app TraceOverlay-macOS.zip
+            security delete-keychain "$KEYCHAIN_PATH" || true
+          else
+            codesign --force --deep -s - TraceOverlay.app
+            ditto -c -k --sequesterRsrc --keepParent TraceOverlay.app TraceOverlay-macOS.zip
+          fi
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
